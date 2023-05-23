@@ -40,7 +40,7 @@ class Banner:
             if logit: print("\nNext pass:")
             self.cycle()
 
-        quit()
+        self.quit()
 
 
     def quit(self):
