@@ -6,19 +6,20 @@ import tkinter
 from PIL import Image, ImageTk
 import time
 
-logit = False
+logit = True
 
 class Banner:
 
-    defaultDir = "C:\\FSC\\banner\\default_photos\\" # default photo(s) in case picDir is empty
-    picDir = "C:\\Users\\rfsc\\Pictures\\" # where to find pictures to show (in alpha order)
+    defaultDir = "C:\\FSC\\banner\\default_pictures\\" # default photo(s) in case picDir is empty
+    #picDir = "C:\\Users\\rfsc\\Pictures\\" # where to find pictures to show (in alpha order)
+    picDir = "P:\\Banner\\Pictures\\"
     imageTypes = [".jpg", ".png", "jpeg"] # assume three-letter file types (MS Windows)
-    delay = 5 # number of seconds to show each pic
+    delay = 25 # number of seconds to show each pic
     keepCycling = True # change to False to stop the program
     win = None # main Tk window
     canvas = None # Tk canvas for drawing the pics
     width = None # screen width in pixels
-    height = None # screen height in pixels
+    height = None # screen height in pixedils
 
     def __init__(self):
         #global win, canvas, width, height
