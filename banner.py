@@ -5,6 +5,7 @@ import os
 import tkinter
 from PIL import Image, ImageTk
 import time
+import tomllib
 
 logit = True
 
@@ -13,8 +14,9 @@ class Banner:
     defaultDir = "C:\\FSC\\banner\\default_pictures\\" # default photo(s) in case picDir is empty
     #picDir = "C:\\Users\\rfsc\\Pictures\\" # where to find pictures to show (in alpha order)
     picDir = "P:\\Banner\\Pictures\\"
+    config_file_name = "P:\\Banner\\banner.cfg"
     imageTypes = [".jpg", ".png", "jpeg"] # assume three-letter file types (MS Windows)
-    delay = 25 # number of seconds to show each pic
+    delay = 15 # number of seconds to show each pic
     keepCycling = True # change to False to stop the program
     win = None # main Tk window
     canvas = None # Tk canvas for drawing the pics
@@ -23,6 +25,7 @@ class Banner:
 
     def __init__(self):
         #global win, canvas, width, height
+        # set defaults
         self.win = tkinter.Tk()
         self.width = self.win.winfo_screenwidth() # get the display width
         self.height =self.win.winfo_screenheight() # get the display height
@@ -31,6 +34,17 @@ class Banner:
         self.win.focus_set() # give it the focus
         self.win.attributes("-topmost", 1) # and to be extra careful, force it to the top
         #self.win.bind("<Escape>", lambda e: self.endCycling(e)) # escape key stops the program
+
+        # get config parameters that might override defaults
+        try:
+            with open(self.config_file_name, "rb") as config_file:
+                cfg = tomllib.load(config_file)
+            if logit: print(type(cfg), cfg)
+            self.delay = cfg["runtime"]["delay_time"]
+            if logit: print(f'setting delay to: {self.delay}')
+        except Exception as err:
+            if logit: print(f'>>> Error: Could not set configuration overrides because:\n{err}')
+
 
         # canvas is our workarea in the window
         self.canvas = tkinter.Canvas(self.win,width=self.width,height=self.height,border=0)
