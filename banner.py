@@ -1,114 +1,177 @@
- # https://stackoverflow.com/questions/53638972/displaying-an-image-full-screen-in-python
+'''
+    https://stackoverflow.com/questions/53638972/displaying-an-image-full-screen-in-python
+'''
+# TODO: one loop: do next image immediately
 
 import os
-
-import tkinter
+from tkinter import *
 from PIL import Image, ImageTk
-import time
 import tomllib
 
-logit = True
+logit = False
+debug = False
 
-class Banner:
+# set default locations
+defaultDir : str = "C:\\FSC\\banner\\default_pictures\\" # default photo(s) in case picDir is empty
+picDir : str = "P:\\Banner\\Pictures\\"
+config_file_name : str = "P:\\Banner\\banner.cfg"
 
-    defaultDir = "C:\\FSC\\banner\\default_pictures\\" # default photo(s) in case picDir is empty
-    #picDir = "C:\\Users\\rfsc\\Pictures\\" # where to find pictures to show (in alpha order)
-    picDir = "P:\\Banner\\Pictures\\"
-    config_file_name = "P:\\Banner\\banner.cfg"
-    imageTypes = [".jpg", ".png", "jpeg"] # assume three-letter file types (MS Windows)
-    delay = 15 # number of seconds to show each pic
-    keepCycling = True # change to False to stop the program
-    win = None # main Tk window
-    canvas = None # Tk canvas for drawing the pics
-    width = None # screen width in pixels
-    height = None # screen height in pixedils
+# runtime defaults
+imageTypes = [".jpg", ".png", "jpeg"] # check the last four characters of the filename
+delay : int = 10 # number of seconds to show each pic, override in config
+keepCycling : bool = True # change to False to stop the program
+win : Tk = None # main Tk window
+canvas : Canvas = None # Tk canvas for drawing the pics
+width : int = None # screen width in pixels
+height : int = None # screen height in pixedils
+counter : int = 0 # seconds remaining to next image
+thisImage : ImageTk.PhotoImage = None # image being displayed
+nextImage : ImageTk.PhotoImage = None # next image to be displayed when counter < 1
+pathNames = [] # current list of files to show
+cycleTime : int = 999 # milliseconds per "second" (adjust for different speed machines)
 
-    def __init__(self):
-        #global win, canvas, width, height
-        # set defaults
-        self.win = tkinter.Tk()
-        self.width = self.win.winfo_screenwidth() # get the display width
-        self.height =self.win.winfo_screenheight() # get the display height
-        self.win.overrideredirect(1) # don't show the title bar
-        self.win.geometry("%dx%d+0+0" % (self.width, self.height)) # create a window that covers the screen
-        self.win.focus_set() # give it the focus
-        self.win.attributes("-topmost", 1) # and to be extra careful, force it to the top
-        #self.win.bind("<Escape>", lambda e: self.endCycling(e)) # escape key stops the program
+doCycleLoop = None # Tk after pointer
+countDownLoop = None # Tk after pointer
 
-        # get config parameters that might override defaults
-        try:
-            with open(self.config_file_name, "rb") as config_file:
-                cfg = tomllib.load(config_file)
-            if logit: print(type(cfg), cfg)
-            self.delay = cfg["runtime"]["delay_time"]
-            if logit: print(f'setting delay to: {self.delay}')
-        except Exception as err:
-            if logit: print(f'>>> Error: Could not set configuration overrides because:\n{err}')
+def init():
+    global debug, win, canvas, width, height, delay
+    if debug: # adjust default locations for debugging
+        defaultDir = "C:\\FSC\\banner\\default_pictures\\" # default photo(s) in case picDir is empty
+        picDir = "C:\\Users\\rfsc\\Pictures\\" # where to find pictures to show (in alpha order)
+        config_file_name = "C:\\Users\\rfsc\\rfslib\\banner\\banner.cfg"
+        delay = 5
 
+    # set up the display window
+    win = Tk()
+    width = win.winfo_screenwidth() # get the display width
+    height = win.winfo_screenheight() # get the display height
+    if debug: # only show on a ninth of the screen for debugging
+        width = int(width / 3)
+        height = int(height / 3)
+    win.geometry("%dx%d+0+0" % (width, height)) # create a window that covers the screen
+    win.focus_set() # give it the focus
+    if not debug: # if not debugging, ensure the images completely cover the screen
+        win.attributes("-topmost", 1) # and to be extra careful, force it to the top
+        win.overrideredirect(1) # don't show the title bar
+    win.bind("<Escape>", quit) # escape key stops the program
 
-        # canvas is our workarea in the window
-        self.canvas = tkinter.Canvas(self.win,width=self.width,height=self.height,border=0)
-        self.canvas.pack()
-        self.canvas.configure(background='black')
+    # canvas is our workarea in the window
+    canvas = Canvas(win, width=width, height=height)
+    canvas.pack()
+    canvas.configure(background='black')
 
-        while(self.keepCycling):
-            if logit: print("\nNext pass:")
-            self.cycle()
+    doCycle() # start the build/getparms cycle
+    countDown() # start the display next cycle
+    win.mainloop() # and go, go, go
 
-        self.quit()
+def doCycle():
+    global debug, keepCycling, doCycleLoop, nextImage, pathNames, win, cycleTime, doNextImage
+    if debug: print('doCycle():')
+    if keepCycling == False:
+        doCycleLoop = None
+        return
+    if nextImage == None:
+        getParms() # get parms (??? ony when prepping next image ???)
+        if len(pathNames) < 1:
+            getImagePaths()
+        buildNextImage(pathNames.pop(0))
+        
+    doCycleLoop = win.after(cycleTime, doCycle)
 
+def countDown():
+    global debug, keepCycling, countDownLoop, counter, nextImage, cycleTime, doNextImage
+    if debug: print('countDown():')
+    if keepCycling == False:
+        countDownLoop = None
+        return
+    showNextImage()
+    nextImage = None
+    '''
+    counter -= 1
+    if counter < 1:
+        if nextImage != None:
+            showNextImage()
+            nextImage = None
+            counter = delay
+    '''
+    countDownLoop = win.after(cycleTime*delay, countDown)
 
-    def quit(self):
-        self.win.destroy()
+def quit(e):
+    global debug, keepCycling, doCycleLoop, win, countDownLoop
+    if debug: print(f'quit(): {e}')
+    keepCycling = False
+    if doCycleLoop != None:
+        win.after_cancel(doCycleLoop)
+    if countDownLoop != None:
+        win.after_cancel(countDown)
+    win.destroy()
+    return
 
-    def showPIL(self, pilImage):
-        #global win, canvas, width, height
-        imgWidth, imgHeight = pilImage.size
-        # resize photo to full screen 
-        ratio = min(self.width/imgWidth, self.height/imgHeight)
-        imgWidth = int(imgWidth*ratio)
-        imgHeight = int(imgHeight*ratio)
-        pilImage = pilImage.resize((imgWidth,imgHeight), Image.LANCZOS)   
-        image = ImageTk.PhotoImage(pilImage)
-        imagesprite = self.canvas.create_image(self.width/2,self.height/2,image=image)
-        self.win.update_idletasks()
-        self.win.update()
-        self.win.bind("<Escape>", lambda e: self.endCycling(e)) # escape key stops the program
-        #root.bind("<Escape>", lambda e: (e.widget.withdraw(), e.widget.quit()))
+def getImagePaths():
+    global debug, picDir, sourceDir, pathNames, logit
+    '''
+        this isn't thread-safe with doCycle, so let doCycle call it
+    '''
+    if debug: print('getImagePaths():')
+    # try to get a list from the working image directory
+    try:
+        sourceDir = picDir
+        fileNames = os.listdir(sourceDir)
+    except:
+        fileNames = []
 
-    def cycle(self):
-        #global win, canvas, width, height
-        sourceDir = self.picDir
-        try:
-            fileNames = os.listdir(sourceDir)
-        except:
-            fileNames = []
-        # if no files in the target directory, use the defaults
-        if(fileNames == []):
-            sourceDir = self.defaultDir
-            fileNames = os.listdir(sourceDir)
-        if logit: print(fileNames)
-        for fileName in fileNames:
-            path = sourceDir + fileName
-            if logit: print("showing:", path)
-            if path[-4:] in self.imageTypes:
-                try:
-                    image=Image.open(path)
-                    foo = self.delay
-                    while((foo > 0) and (self.keepCycling)):
-                        foo -= 1
-                        if logit: print("foo, keepCycling:", foo, self.keepCycling)
-                        self.showPIL(image)
-                        time.sleep(1)
+    # if no files in the working directory, use the defaults
+    if fileNames == []:
+        sourceDir = defaultDir
+        fileNames = os.listdir(sourceDir)
 
-                except:
-                    if logit: print(f"{path} failed")
+    # only return pathnames that are images (based on Windows extension)
+    #if logit: print(fileNames)
+    for fileName in fileNames:
+        path = sourceDir + fileName
+        if path[-4:] in imageTypes:
+            pathNames.append(path)
 
-    def endCycling(self, e):
-        global keepCycling
+    if logit: print('  files to show: ', pathNames)
+    return
 
-        self.keepCycling = False
-        if logit: print("stopping:", e)
+def buildNextImage(path) -> ImageTk.PhotoImage:
+    global debug, logit, nextImage, width, height, canvas
+    if debug: print(f'buildNextImage({path}):')
+    try: # read the image from disk
+        image=Image.open(path)
+    except: # read failure (image deleted? not an image?)
+        if logit: print(f"{path} failed")
+        return None
+    # if necessary, size the image to fit in the canvas
+    imgWidth, imgHeight = image.size
+    ratio = min(width/imgWidth, height/imgHeight)
+    imgWidth = int(imgWidth*ratio)
+    imgHeight = int(imgHeight*ratio)
+    nextImage = ImageTk.PhotoImage(image.resize((imgWidth, imgHeight), Image.LANCZOS))
+    return
+
+def showNextImage():
+    global debug, canvas, width, height, thisImage, nextImage
+    if debug: print('showNextImage():')
+    thisImage = nextImage
+    canvas.create_image(width/2, height/2, image=thisImage)
+    return
+
+def getParms():
+    global debug, config_file_name, delay, logit
+    if debug: print('getParms():')
+    # get config parameters that might override defaults
+    try:
+        with open(config_file_name, "rb") as config_file:
+            cfg = tomllib.load(config_file)
+        if debug: print(type(cfg), cfg)
+        delay = cfg["runtime"]["delay_time"]
+        if logit: print(f'setting delay to: {delay}')
+    except Exception as err:
+        if logit: print(f'>>> Error: Could not set configuration overrides because: {err}')
+    return
 
 if __name__ == '__main__':            
-    banner = Banner()
+    init()
+
