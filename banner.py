@@ -129,7 +129,7 @@ def getImagePaths():
     #if logit: print(fileNames)
     for fileName in fileNames:
         path = sourceDir + fileName
-        if path[-4:] in imageTypes:
+        if path[-4:].lower() in imageTypes:
             pathNames.append(path)
 
     if logit: print('  files to show: ', pathNames)
